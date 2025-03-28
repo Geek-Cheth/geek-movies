@@ -28,23 +28,22 @@ const App = () => {
   const [movieList, setMovieList] = useState([]);
   const [trendingMovies, setTrendingMovies] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMorePages, setHasMorePages] = useState(true);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
   // Debounce the search term so that we don't send a request on every key stroke
   // This will wait for the user to stop typing for 800ms before sending a request
   useDebounce(() => setDebouncedSearchTerm(searchTerm), 2000, [searchTerm]);
   
-  const fetchMovies = async (query = '') => {
-
+  const fetchMovies = async (query = '', page = 1, append = false) => {
     setIsLoading(true);
     setErrorMessage('');
 
     try {
       const endpoint = query 
-      
-      ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}`
-      
-      : `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
+        ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}&page=${page}`
+        : `${API_BASE_URL}/discover/movie?sort_by=popularity.desc&page=${page}`;
 
       const response = await fetch(endpoint, API_OPTIONS);
 
@@ -60,7 +59,13 @@ const App = () => {
         return;
       }
 
-      setMovieList(data.results || []);
+      if (append) {
+        setMovieList(prev => [...prev, ...(data.results || [])]);
+      } else {
+        setMovieList(data.results || []);
+      }
+      
+      setHasMorePages(data.page < data.total_pages);
 
       if(query && data.results.length > 0) {
         await updateSearchCount(query, data.results[0]);
@@ -87,8 +92,15 @@ const App = () => {
 
 
   useEffect(() => {
+    setCurrentPage(1);
     fetchMovies(debouncedSearchTerm);
   }, [debouncedSearchTerm]);
+
+  const handleLoadMore = () => {
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    fetchMovies(debouncedSearchTerm, nextPage, true);
+  };
 
   useEffect(() => {
     loadTrendingMovies();
@@ -141,6 +153,14 @@ const App = () => {
           )}
 
 
+          {!isLoading && !errorMessage && hasMorePages && (
+            <button
+              onClick={handleLoadMore}
+              className="mt-8 px-6 py-3 bg-gradient-to-r from-[#ff3366] to-[#ff9933] text-white rounded-lg hover:opacity-90 transition-opacity"
+            >
+              Load More
+            </button>
+          )}
           {errorMessage && <p className="text-red-500">{errorMessage}</p>}
         </section>
       </div>
@@ -149,7 +169,3 @@ const App = () => {
 }
 
 export default App
-
-
-
-
